@@ -256,7 +256,17 @@ class LessonService {
 
   Map<String, dynamic> extractWord(List<String> fields) {
     var word = Map<String, dynamic>();
-    var keys = ["src", "dest", "mp3"];
+    var keys = [
+      "src",
+      "dest",
+      "mp3",
+      "src_sentence",
+      "dest_sentence",
+      "src_x",
+      "dest_x",
+      "src_sencence_x",
+      "dest_sentence_x"
+    ];
     for (var k in keys) word[k] = "";
     var keyIdx = 0;
     bool quotedString = false;
