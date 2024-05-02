@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
+import 'package:html/parser.dart' show parse;
+import 'package:path/path.dart' as p;
 
 import 'package:archive/archive.dart';
 import 'package:path_provider/path_provider.dart';
@@ -111,7 +115,9 @@ class LessonService {
     return currentUnit;
   }
 
-  Future<String> toFileName(Lesson lesson, {String unit = basicFrench}) async {
+  Future<String> toFileName(Lesson lesson, {String unit = ""}) async {
+    String defaultUnit = _units.length <= 0 ? "" : _units[0]["id"];
+    if (unit.isEmpty) unit = storage.get("current_unit_id", defaultUnit);
     var name = lesson.data.name ?? "current_lesson";
     name = name.replaceAll(" ", "_") + ".json";
     var dir = await _localPath + unit;
@@ -160,7 +166,7 @@ class LessonService {
   }
 
   Future<String> fileNameFromId(String unit) async {
-    return (await _localPath) + unit + ".csv;";
+    return (await _localPath) + unit + ".csv";
   }
 
   Future removeCached({required String unit}) async {
@@ -201,15 +207,63 @@ class LessonService {
     return csvContent;
   }
 
+  static String? getUuid(http.Response response) {
+    if (response.statusCode == 200) {
+      var document = parse(response.body);
+      var confirmElement = document.querySelector('input[name="uuid"]');
+      return confirmElement?.attributes['value'];
+    }
+    return null;
+  }
+
+  static Future<void> downloadFileFromGoogleDrive(
+      String id, String destination) async {
+    var url = Uri.parse('https://docs.google.com/uc?export=download&id=$id');
+
+    var httpClient = HttpClient();
+    httpClient.connectionTimeout =
+        const Duration(seconds: 30); // Increase timeout duration
+    var ioClient = IOClient(httpClient);
+
+    var response = await ioClient.get(url);
+
+    var token = getConfirmToken(response);
+    var uuid = getUuid(response);
+    if (token != null || uuid != null) {
+      var params = {
+        'id': id,
+        'confirm': 't',
+        'export': 'download',
+        'authuser': '0',
+      };
+      if (token != null) params['at'] = token;
+      if (uuid != null) params['uuid'] = uuid;
+
+      var url = Uri.parse('https://drive.usercontent.google.com/download');
+      url = url.replace(queryParameters: params);
+      response = await ioClient.get(url);
+    }
+
+    var dirPath = p.dirname(destination);
+    if (!await Directory(dirPath).exists()) {
+      await Directory(dirPath).create(recursive: true);
+    }
+    var file = File(destination);
+    await file.writeAsBytes(response.bodyBytes);
+  }
+
+  static String? getConfirmToken(http.Response response) {
+    if (response.statusCode == 200) {
+      var document = parse(response.body);
+      var confirmElement = document.querySelector('input[name="at"]');
+      return confirmElement?.attributes['value'];
+    }
+    return null;
+  }
+
   static Future downloadAndUnzip(String fileId, String path) async {
-    var url = "https://drive.google.com/uc?export=download&id=" + fileId;
-    var http = HttpClient();
     var filePath = path + "/" + fileId + ".zip";
-    var dataFile = File(filePath);
-    if (!await Directory(path).exists()) await Directory(path).create();
-    var request = await http.getUrl(Uri.parse(url));
-    var response = await request.close();
-    await response.pipe(dataFile.openWrite());
+    await downloadFileFromGoogleDrive(fileId, filePath);
 
     // Read the Zip file from disk.
     List<int> bytes = await File(filePath).readAsBytes();
@@ -254,9 +308,21 @@ class LessonService {
     return JsonObject.fromDynamic(data);
   }
 
+  bool hasSentences(List<String> fields) => fields.length > 4;
+
   Map<String, dynamic> extractWord(List<String> fields) {
     var word = Map<String, dynamic>();
-    var keys = ["src", "dest", "mp3"];
+    var keys = hasSentences(fields)
+        ? [
+            "src",
+            "dest",
+            "mp3",
+            "src_sentence",
+            "dest_sentence",
+            "mp3_start",
+            "mp3_duration"
+          ]
+        : ["src", "dest", "mp3"];
     for (var k in keys) word[k] = "";
     var keyIdx = 0;
     bool quotedString = false;

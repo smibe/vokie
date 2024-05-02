@@ -21,7 +21,7 @@ class JsonObject {
   String getString(String key) => data[key];
   void setString(String key, String value) => data[key] = value;
 
-  List<dynamic> getList(String key) => data[key];
+  List<dynamic> getList(String key) => data[key] == null ? [] : data[key];
 
   bool getBool(String key) => data[key];
 

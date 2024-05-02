@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ class LessonView extends StatelessWidget {
   final Lesson lesson;
   final Function onChanged;
   final bool allTargetsVisible;
+  AudioPlayer audioPlayer = AudioPlayer();
+  Timer? stopTimer;
 
   LessonView(this.lesson,
       {required this.onChanged, required this.allTargetsVisible})
@@ -30,10 +33,41 @@ class LessonView extends StatelessWidget {
   }
 
   playMp3(Vokabel vokabel) async {
-    var audioPlayer = DiContainer.resolve<AudioPlayer>();
+    await audioPlayer.stop();
+    stopTimer?.cancel();
     var service = DiContainer.resolve<LessonService>();
     var path = await service.unitLocalDirectory + vokabel.mp3;
-    await audioPlayer.play(DeviceFileSource(path));
+    if (File(path).existsSync()) {
+      if (vokabel.mp3_duration > 0) {
+        await audioPlayer.setReleaseMode(
+            ReleaseMode.stop); // Stop the audio when it finishes playing
+        // Wait for the audio player to be ready before seeking
+        var playerReady = Completer<void>();
+        StreamSubscription<PlayerState>? playerStateSubscription;
+        playerStateSubscription =
+            audioPlayer.onPlayerStateChanged.listen((state) {
+          if (state == PlayerState.playing) {
+            playerReady.complete();
+            playerStateSubscription?.cancel();
+          }
+        });
+
+        await audioPlayer.play(DeviceFileSource(path));
+        await playerReady.future;
+
+        await audioPlayer.seek(Duration(
+            seconds: vokabel
+                .mp3_start)); // Replace 'start' with the start time in seconds
+
+        // Stop the audio after a specific duration
+        stopTimer = Timer(Duration(seconds: vokabel.mp3_duration), () {
+          // Replace 'duration' with the duration in seconds
+          audioPlayer.stop();
+        });
+      } else {
+        await audioPlayer.play(DeviceFileSource(path));
+      }
+    }
   }
 
   Widget createItem(context, i, List<int> filtered) {
@@ -63,8 +97,21 @@ class LessonView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(vokabel.target, style: TextStyle(fontSize: 28.0)),
+                    vokabel.target_sentence != "" && showTarget
+                        ? Text(vokabel.target_sentence,
+                            style: TextStyle(fontSize: 18.0))
+                        : empty,
+                    showTarget
+                        ? SizedBox(
+                            height: 10,
+                          )
+                        : empty,
                     Text(showTarget ? vokabel.source : "",
                         style: TextStyle(fontSize: 18.0)),
+                    vokabel.source_sentence != "" && showTarget
+                        ? Text(vokabel.source_sentence,
+                            style: TextStyle(fontSize: 18.0))
+                        : empty,
                     showTarget
                         ? Row(
                             children: [
