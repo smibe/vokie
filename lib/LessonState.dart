@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:vokie/vokable.dart';
 
 import 'json_object.dart';
@@ -5,6 +6,7 @@ import 'json_object.dart';
 class LessonState {
   String name = "";
   List<Vokabel> lesson = [];
+  int correctCountForDone = 4;
   int selected = 0;
   Vokabel get selectedVokabel => lesson[selected];
 
@@ -24,8 +26,10 @@ class LessonState {
 
   int get total => lesson.length;
 
-  int get done => lesson.where((x) => x.correct - x.wrong >= 4).length;
+  int get done => lesson.where((x) => x.correct - x.wrong >= correctCountForDone).length;
   int get currentDone => lesson.where((x) => x.showTarget).length;
+  int get totalCorrectCount => lesson.fold(0, (sum, vokabel) => sum + (vokabel.correct - vokabel.wrong));
+  int get progress => (totalCorrectCount * 100.0 / (lesson.length * correctCountForDone)).toInt();
 
   toJson() {
     return {

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -7,8 +6,7 @@ class TimedAudioPlayer {
   final AudioPlayer _audioPlayer = AudioPlayer();
   Timer? _stopTimer;
 
-  Future<void> playFromPath(String path,
-      {int startSeconds = 0, int? durationSeconds}) async {
+  Future<void> playFromPath(String path, {int startSeconds = 0, int? durationSeconds}) async {
     if (_audioPlayer.state != PlayerState.stopped) {
       await _audioPlayer.stop();
     }

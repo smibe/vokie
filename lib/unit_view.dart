@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:vokie/DiContainer.dart';
 import 'package:vokie/storage.dart';
 
 import 'json_object.dart';
 import 'lesson_service.dart';
+import 'lesson.dart';
 
 class UnitView extends StatefulWidget {
   UnitView();
@@ -53,8 +56,8 @@ class _UnitViewState extends State<UnitView> {
 
   Future<JsonObject> _retrieveCurrentUnit() async {
     _units = await lessonService.getUnits();
-    _currentUnit = _units.firstWhere((x) => x["id"] == _currentUnitId,
-        orElse: (() => _units[0] as Map<String, dynamic>));
+    _currentUnit =
+        _units.firstWhere((x) => x["id"] == _currentUnitId, orElse: (() => _units[0] as Map<String, dynamic>));
 
     if (_currentUnit == null) return JsonObject("");
     return await lessonService.getData(format: "cvs", unit: _currentUnit["id"]);
@@ -74,6 +77,16 @@ class _UnitViewState extends State<UnitView> {
       return DropdownMenuItem<dynamic>(value: u, child: Text(u["name"]));
     });
     return list.toList();
+  }
+
+  Future<int> calculateProgress(dynamic json) async {
+    var lesson = Lesson(JsonObject.fromDynamic(json));
+    var lessonService = DiContainer.resolve<LessonService>();
+    var fileName = await lessonService.toFileName(lesson, unit: _currentUnit["id"].toString());
+    if (File(fileName).existsSync()) {
+      lesson = await lessonService.loadLesson(fileName);
+    }
+    return lesson.data.progress;
   }
 
   @override
@@ -123,15 +136,25 @@ class _UnitViewState extends State<UnitView> {
                       onChanged: (int? value) {
                         if (value != null) {
                           DiContainer.resolve<Storage>().remove("current");
-                          DiContainer.resolve<Storage>()
-                              .setString("current_idx", value.toString());
+                          DiContainer.resolve<Storage>().setString("current_idx", value.toString());
                           setState(() {
                             selection = value;
                           });
                         }
                       },
                     ),
-                    Text(lessons[index]["name"]),
+                    FutureBuilder<int>(
+                      future: calculateProgress(lessons[index]),
+                      builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return Text(lessons[index]["name"]);
+                        } else if (snapshot.hasError) {
+                          return Text('Error: ${snapshot.error}');
+                        } else {
+                          return Text(lessons[index]["name"] + " " + snapshot.data.toString() + "%");
+                        }
+                      },
+                    ),
                   ],
                 );
               },
