@@ -19,6 +19,7 @@ class _UnitViewState extends State<UnitView> {
   String _currentUnitId = "";
   List<dynamic> _units = [];
   LessonService lessonService = DiContainer.resolve<LessonService>();
+  List<dynamic> lessons = [];
 
   dynamic _currentUnit;
 
@@ -26,7 +27,10 @@ class _UnitViewState extends State<UnitView> {
   void initState() {
     _currentUnitId = _storage.getString("current_unit_id");
     _retrieveCurrentUnit().then((d) {
-      setState(() => unit = d);
+      setState(() {
+        unit = d;
+        lessons = unit.getList("lessons");
+      });
     });
     selection = _storage.get("current_idx", 0);
     _storage.valueChanged("current_unit_id").add(onUnitChanged);
@@ -43,6 +47,7 @@ class _UnitViewState extends State<UnitView> {
     var u = await _retrieveCurrentUnit();
     setState(() {
       unit = u;
+      lessons = unit.getList("lessons");
     });
   }
 
@@ -55,7 +60,7 @@ class _UnitViewState extends State<UnitView> {
     return await lessonService.getData(format: "cvs", unit: _currentUnit["id"]);
   }
 
-  void _refreshCurrentUnit() async {
+  Future _refreshCurrentUnit() async {
     lessonService.resetUnits();
     await lessonService.removeCached(unit: _currentUnit["id"]);
     var data = await _retrieveCurrentUnit();
@@ -73,7 +78,6 @@ class _UnitViewState extends State<UnitView> {
 
   @override
   Widget build(BuildContext context) {
-    var lessons = unit?.getList("lessons") ?? [];
     return Column(
       children: <Widget>[
         Padding(
@@ -84,6 +88,7 @@ class _UnitViewState extends State<UnitView> {
                 value: _currentUnit,
                 items: getItems(),
                 onChanged: (value) {
+                  if (value == null || value == []) return;
                   setState(() {
                     _currentUnitId = value["id"];
                     _retrieveCurrentUnit();
@@ -96,8 +101,8 @@ class _UnitViewState extends State<UnitView> {
               ),
               Expanded(child: Padding(padding: EdgeInsets.all(0))),
               IconButton(
-                  onPressed: () {
-                    _refreshCurrentUnit();
+                  onPressed: () async {
+                    await _refreshCurrentUnit();
                   },
                   icon: Icon(
                     Icons.refresh,

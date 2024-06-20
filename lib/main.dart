@@ -14,6 +14,7 @@ import 'package:vokie/lesson.dart';
 import 'package:vokie/lesson_service.dart';
 import 'package:vokie/settingsView.dart';
 import 'package:vokie/storage.dart';
+import 'package:vokie/timedAudioPlayer.dart';
 import 'package:vokie/unit_view.dart';
 import 'package:vokie/vokable.dart';
 
@@ -29,7 +30,7 @@ Future initialize() async {
   DiContainer.setInstance<SharedPreferences>(sharedPreferences);
   DiContainer.setInstance<Storage>(Storage());
   DiContainer.setInstance<LessonService>(LessonService());
-  DiContainer.setInstance<AudioPlayer>(AudioPlayer());
+  DiContainer.setInstance<TimedAudioPlayer>(TimedAudioPlayer());
 }
 
 class MyApp extends StatelessWidget {
@@ -75,6 +76,8 @@ class _MyHomePageState extends State<MyHomePage> {
   late Storage _storage;
   bool _hasChanged = false;
 
+  bool _playingAudio = false;
+
   late LessonService service;
   late List<Vokabel> lesson;
 
@@ -115,6 +118,26 @@ class _MyHomePageState extends State<MyHomePage> {
       allVisible();
   }
 
+  Future onAudioButton() async {
+    var audioPlayer = DiContainer.resolve<TimedAudioPlayer>();
+    var directory =
+        await DiContainer.resolve<LessonService>().unitLocalDirectory;
+
+    if (!_playingAudio)
+      await audioPlayer.stop();
+    else {
+      for (var v in lesson) {
+        if (v.mp3 != "") {
+          if (!_playingAudio) break;
+          await audioPlayer.playFromPath(directory + v.mp3,
+              startSeconds: v.mp3_start, durationSeconds: v.mp3_duration);
+          if (!_playingAudio) break;
+          await Future.delayed(Duration(seconds: v.mp3_duration));
+        }
+      }
+    }
+  }
+
   void save() {
     if (_hasChanged) {
       service.storeCurrentLesson(_storage, lessonController);
@@ -134,6 +157,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
     _storage.valueChanged("current_idx").add((v) {
       getCurrentLesson();
+    });
+
+    var audioPlayer = DiContainer.resolve<TimedAudioPlayer>();
+    audioPlayer.stateChanged.listen((event) {
+      setState(() {
+        _playingAudio = event == PlayerState.playing;
+      });
     });
 
     super.initState();
@@ -175,6 +205,15 @@ class _MyHomePageState extends State<MyHomePage> {
                       color: allTargetsVisible ? selectedIconColor : iconColor,
                       icon: Icon(Icons.visibility),
                       onPressed: () => setState(() => toggleVisible())),
+                )
+              : empty,
+          view == "lesson"
+              ? IconButton(
+                  icon: Icon(_playingAudio ? Icons.stop : Icons.play_arrow),
+                  onPressed: () async {
+                    setState(() => _playingAudio = !_playingAudio);
+                    await onAudioButton();
+                  },
                 )
               : empty,
           IconButton(
