@@ -130,28 +130,56 @@ class _UnitViewState extends State<UnitView> {
               itemBuilder: (BuildContext context, int index) {
                 return Row(
                   children: <Widget>[
-                    Radio(
-                      value: index,
-                      groupValue: selection,
-                      onChanged: (int? value) {
-                        if (value != null) {
-                          DiContainer.resolve<Storage>().remove("current");
-                          DiContainer.resolve<Storage>().setString("current_idx", value.toString());
-                          setState(() {
-                            selection = value;
-                          });
-                        }
-                      },
+                    SizedBox(
+                      width: 200,
+                      child: Row(
+                        children: [
+                          Radio(
+                            value: index,
+                            groupValue: selection,
+                            onChanged: (int? value) {
+                              if (value != null) {
+                                DiContainer.resolve<Storage>().remove("current");
+                                DiContainer.resolve<Storage>().setString("current_idx", value.toString());
+                                setState(() {
+                                  selection = value;
+                                });
+                              }
+                            },
+                          ),
+                          Text(lessons[index]["name"]),
+                        ],
+                      ),
                     ),
                     FutureBuilder<int>(
                       future: calculateProgress(lessons[index]),
                       builder: (BuildContext context, AsyncSnapshot<int> snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Text(lessons[index]["name"]);
+                          return Text("");
                         } else if (snapshot.hasError) {
-                          return Text('Error: ${snapshot.error}');
+                          return Text("");
                         } else {
-                          return Text(lessons[index]["name"] + " " + snapshot.data.toString() + "%");
+                          return snapshot.data == 0
+                              ? Text("")
+                              : Stack(
+                                  children: <Widget>[
+                                    SizedBox(
+                                      width: 100,
+                                      height: 30,
+                                      child: LinearProgressIndicator(
+                                        color: Colors.lightGreen,
+                                        value: snapshot.data! / 100,
+                                        semanticsLabel: 'Progress',
+                                        semanticsValue: '${snapshot.data}%',
+                                      ),
+                                    ),
+                                    Positioned.fill(
+                                      child: Center(
+                                        child: Text('${snapshot.data}%'),
+                                      ),
+                                    ),
+                                  ],
+                                );
                         }
                       },
                     ),
