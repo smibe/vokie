@@ -40,8 +40,7 @@ class LessonService {
     var lesson = await getCurrentLesson(storage);
     var updatedLesson = await loadUpdatedLesson();
     if (lesson.data.lesson.length < updatedLesson.data.lesson.length) {
-      lesson.data.lesson
-          .addAll(updatedLesson.data.lesson.sublist(lesson.data.lesson.length));
+      lesson.data.lesson.addAll(updatedLesson.data.lesson.sublist(lesson.data.lesson.length));
       await storeCurrentLesson(storage, lesson);
     }
   }
@@ -49,8 +48,7 @@ class LessonService {
   Future<Lesson> loadUpdatedLesson() async {
     var storage = DiContainer.resolve<Storage>();
     var idx = storage.get("current_idx", 0);
-    var unit = storage.get(
-        "current_unit_id", _units.length <= 0 ? "" : _units[0]["id"]);
+    var unit = storage.get("current_unit_id", _units.length <= 0 ? "" : _units[0]["id"]);
     var data = await getData(format: "csv", unit: unit);
     if (!data.isEmpty()) return getPlainLessonFromData(data, idx);
     return getCurrentLesson(storage);
@@ -98,7 +96,7 @@ class LessonService {
 
   Future<String> get unitLocalDirectory async {
     var unit = storage.getString("current_unit_id");
-    if (unit == null) unit = "null";
+    if (unit == "") unit = "null";
     return await _localPath + unit + "/";
   }
 
@@ -109,16 +107,15 @@ class LessonService {
 
   Future<Map<String, String>> getCurrentUnit() async {
     var currentUnitId = storage.getString("current_unit_id");
-    var currentUnit = (await getUnits()).firstWhere(
-        (x) => x["id"] == currentUnitId,
-        orElse: (() => _units[0] as Map<String, String>));
+    var currentUnit = (await getUnits())
+        .firstWhere((x) => x["id"] == currentUnitId, orElse: (() => _units[0] as Map<String, String>));
     return currentUnit;
   }
 
   Future<String> toFileName(Lesson lesson, {String unit = ""}) async {
     String defaultUnit = _units.length <= 0 ? "" : _units[0]["id"];
     if (unit.isEmpty) unit = storage.get("current_unit_id", defaultUnit);
-    var name = lesson.data.name ?? "current_lesson";
+    var name = lesson.data.name == "" ? "current_lesson" : lesson.data.name;
     name = name.replaceAll(" ", "_") + ".json";
     var dir = await _localPath + unit;
     if (!await Directory(dir).exists()) Directory(dir).create();
@@ -131,12 +128,10 @@ class LessonService {
   }
 
   Future<Lesson> getLesson(Storage storage, {int idx = 0}) async {
-    if (storage.containsKey("current") &&
-        await File(storage.getString("current")).exists()) {
+    if (storage.containsKey("current") && await File(storage.getString("current")).exists()) {
       return await loadLesson(storage.getString("current"));
     }
-    String defaultUnit =
-        getUnits() == null || _units.length <= 0 ? "" : _units[0]["id"];
+    String defaultUnit = _units.isEmpty ? "" : _units[0]["id"];
     var unit = storage.get("current_unit_id", defaultUnit);
     var data = await getData(format: "csv", unit: unit);
     return getLessonFromData(data, idx);
@@ -151,9 +146,7 @@ class LessonService {
     var fileName = await toFileName(Lesson(JsonObject.fromDynamic(lessonData)));
     if (await File(fileName).exists()) return await loadLesson(fileName);
 
-    var lesson = lessonData["words"] != null
-        ? JsonObject.fromDynamic(lessonData)
-        : await api.get(lessonData["url"]);
+    var lesson = lessonData["words"] != null ? JsonObject.fromDynamic(lessonData) : await api.get(lessonData["url"]);
 
     return Lesson(lesson);
   }
@@ -175,8 +168,7 @@ class LessonService {
     if (await file.exists()) await file.delete();
   }
 
-  Future<JsonObject> getData(
-      {String format = "json", required String unit}) async {
+  Future<JsonObject> getData({String format = "json", required String unit}) async {
     if (format == "json") {
       return api.getJsonById("1lA-vhaxchV-4wi6quSQdOJAYbyZ3n_5g");
     } else {
@@ -187,8 +179,7 @@ class LessonService {
 
   dynamic getUnit(String unitId) async {
     var units = await getUnits();
-    if (units != null) return units.firstWhere((x) => x["id"] == unitId);
-    return null;
+    return units.firstWhere((x) => x["id"] == unitId);
   }
 
   Future<String> getUnitContent(String unitId) async {
@@ -216,13 +207,11 @@ class LessonService {
     return null;
   }
 
-  static Future<void> downloadFileFromGoogleDrive(
-      String id, String destination) async {
+  static Future<void> downloadFileFromGoogleDrive(String id, String destination) async {
     var url = Uri.parse('https://docs.google.com/uc?export=download&id=$id');
 
     var httpClient = HttpClient();
-    httpClient.connectionTimeout =
-        const Duration(seconds: 30); // Increase timeout duration
+    httpClient.connectionTimeout = const Duration(seconds: 30); // Increase timeout duration
     var ioClient = IOClient(httpClient);
 
     var response = await ioClient.get(url);
@@ -299,7 +288,7 @@ class LessonService {
         lesson["words"] = words;
         lessons.add(lesson);
       } else if (lesson != null) {
-        if (fields.length >= 2 && fields[1] != "" && fields[2] != null) {
+        if (fields.length >= 2 && fields[1].isEmpty && !fields[2].isEmpty) {
           Map<String, dynamic> word = extractWord(fields);
           words.add(word);
         }
@@ -313,15 +302,7 @@ class LessonService {
   Map<String, dynamic> extractWord(List<String> fields) {
     var word = Map<String, dynamic>();
     var keys = hasSentences(fields)
-        ? [
-            "src",
-            "dest",
-            "mp3",
-            "src_sentence",
-            "dest_sentence",
-            "mp3_start",
-            "mp3_duration"
-          ]
+        ? ["src", "dest", "mp3", "src_sentence", "dest_sentence", "mp3_start", "mp3_duration"]
         : ["src", "dest", "mp3"];
     for (var k in keys) word[k] = "";
     var keyIdx = 0;
